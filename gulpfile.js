@@ -11,7 +11,8 @@ var gulp = require("gulp"),
     useref = require("gulp-useref"),
     gulpif = require("gulp-if"),
     csso = require("gulp-csso"),
-    del = require("del");
+    del = require("del"),
+    browserSync = require('browser-sync').create();
     
 var options = {
 	src: "src",
@@ -19,11 +20,34 @@ var options = {
 	dep: "dep"
 }
 
+
+/*************************************************************
+* Watching and Browser-syncing
+*************************************************************/
+gulp.task("serve", ["styles"], function() {
+	browserSync.init({
+	   server: {
+		  baseDir: "./dep/"
+	   }
+	});
+	
+	gulp.watch(["src/js/*.js", "src/js/**/*.js"], ["js-watch"]);
+	gulp.watch([options.src + "/sass/*.scss", options.src + "/sass/**/*.sass", options.src + "/sass/**/**/*.sass"], ["styles"]);
+	gulp.watch("src/*.html").on("change", browserSync.reload);
+});
+
+
 gulp.task("watch", function() {
 	gulp.watch([options.src + "/sass/*.scss", options.src + "/sass/**/*.sass", options.src + "/sass/**/**/*.sass"], ["styles"]);
 	gulp.watch([options.src + "/js/*.js", options.src + "/js/circle/*.js"], ["scripts"]);
 });
+/*************************************************************/
 
+
+
+/*************************************************************
+* Cleaning
+*************************************************************/
 gulp.task("cleanJS", function () {
 	return del(["dist/js", "dep/js"]);
 });
@@ -39,8 +63,13 @@ gulp.task("cleanImages", function () {
 gulp.task("clean", function () {
 	return del(["dist", "dep"]);
 });
+/*************************************************************/
 
 
+/*************************************************************
+* JavaScript Linting, Concatinating, Minifying, Relocating 
+* and setting up Browsersync to watch JS src files
+*************************************************************/
 gulp.task("lint", function() {
 	return gulp.src([options.src + "/js/circle/autogrow.js", 
 				options.src + "/js/circle/circle.js",
@@ -57,7 +86,6 @@ gulp.task("lint", function() {
 			.pipe(eslint.failAfterError());
 });
 
-
 gulp.task("scripts", ["cleanJS", "lint"], function() {
 	return gulp.src([options.src + "/js/circle/autogrow.js", 
 				options.src + "/js/circle/circle.js",
@@ -70,7 +98,18 @@ gulp.task("scripts", ["cleanJS", "lint"], function() {
 			.pipe(gulp.dest("dep/js"));
 });
 
+gulp.task("js-watch", ["scripts"], function (done) {
+    browserSync.reload();
+    done();
+});
+/*************************************************************/
 
+
+
+/*************************************************************
+* CSS Concatinating, Minifying, Relocating 
+* and setting up Browsersync to watch Sass src files
+*************************************************************/
 gulp.task("styles", ["cleanCSS"], function() {
 	return gulp.src([options.src + "/sass/global.scss"])
 			.pipe(maps.init())
@@ -80,25 +119,37 @@ gulp.task("styles", ["cleanCSS"], function() {
 			.pipe(rename("all.min.css"))
 			.pipe(maps.write("./"))
 			.pipe(gulp.dest("dist/css"))
-			.pipe(gulp.dest("dep/css"));
+			.pipe(gulp.dest("dep/css"))
+			.pipe(browserSync.stream());
 });
+/*************************************************************/
 
 
+
+/*************************************************************
+* Image zip and relocate
+*************************************************************/
 gulp.task("images", ["cleanImages"], function() {
 	return gulp.src(options.src + "/images/*")
 			.pipe(imagemin())
 			.pipe(gulp.dest("dist/content"))
 			.pipe(gulp.dest("dep/images"));
 });
+/*************************************************************/
 
 
+/*************************************************************
+* Renaming CSS and JS links and relocating HTMl 
+*************************************************************/
 gulp.task("html", ["styles"], function() {
 	return gulp.src(options.src + "/index.html")
 			.pipe(useref())
 			.pipe(gulpif(["*.js", "**/*.js"], uglify()))
 			.pipe(gulpif(["*.css"], csso()))
+			.pipe(gulp.dest(options.dist))
 			.pipe(gulp.dest(options.dep));
 });
+/*************************************************************/
 
 
 gulp.task("preBuild", ["clean"], function() {
@@ -111,5 +162,7 @@ gulp.task("build", ["preBuild"], function() {
 				.pipe(gulp.dest("dist"));
 });
 
-gulp.task("default", ["build", "html"]);
+gulp.task("default", ["build"], function() {
+	gulp.start("html");
+});
 
